@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Starline · Memory Game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: quiet, nocturnal, a little magical; a game you play in a dark room
+   IDEA: an observatory star chart; each round a star flares, at the end you redraw the constellation
+   PICTURE: the sky field itself, large, with stars, a faint grid and the drawn constellation on results
+   COLOUR and TYPE: deep sea-ink night, ivory stars, one coral flare; ZCOOL XiaoWei titles, Noto Sans SC body
+   LAYOUT: modest header, the sky board fills the screen, controls in one row beneath */
+:root{color-scheme:dark;--bg:#07161b;--sky:#0b2229;--line:#1d3d45;--ink:#eef3ee;--dim:#8fa9aa;--star:#f4efdc;--flare:#ff6f59;--ok:#7fe0c0;--bad:#ff6f59}
+:root[data-theme=light],:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Inter",system-ui,sans-serif;overflow-x:clip;min-height:100vh}
+.wrap{max-width:1100px;margin:0 auto;padding:clamp(14px,3vw,32px) max(4vw,14px) 40px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+h1{font:400 clamp(32px,5vw,46px)/1.05 "Fraunces",Georgia,serif;margin:0;letter-spacing:0}
+h1 small{font:15px "Inter",sans-serif;color:var(--dim);margin-left:10px;letter-spacing:0}
+.hud{color:var(--dim);font-size:15px;white-space:nowrap}
+.hud b{color:var(--ink);font-weight:600}
+.board{position:relative;background:radial-gradient(120% 90% at 30% 10%,#123540 0%,var(--sky) 55%,#081a20 100%);border:1px solid var(--line);border-radius:18px;overflow:hidden;aspect-ratio:16/10;max-height:72vh;width:100%;box-shadow:0 30px 60px -30px #000}
+@media(max-width:600px){.board{aspect-ratio:4/5;max-height:none}}
+.board svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.panel{position:absolute;inset:0;display:grid;place-items:center;padding:20px;text-align:center}
+.panel[hidden]{display:none}
+.card{max-width:560px;width:100%}
+.card h2{font:400 clamp(28px,4vw,40px)/1.1 "Fraunces",Georgia,serif;margin:0 0 10px}
+.card p{color:var(--dim);margin:0 0 18px}
+.seg{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:0 0 14px}
+.seg label{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border:1px solid var(--line);border-radius:999px;cursor:pointer;background:#0a1d23;font-size:15px}
+.seg input{accent-color:var(--flare)}
+.seg label:has(input:checked){border-color:var(--star);background:#13323a}
+.lab{font-size:13px;color:var(--dim);margin:6px 0}
+button{font:600 16px "Inter",sans-serif;min-height:46px;padding:0 24px;border-radius:999px;border:1px solid var(--line);background:#10303a;color:var(--ink);cursor:pointer}
+button:hover{background:#174450}
+button:focus-visible,.seg label:focus-within{outline:2px solid var(--flare);outline-offset:2px}
+button.go{background:var(--flare);border-color:var(--flare);color:#1a0d0a}
+button.go:hover{background:#ff8672}
+button:disabled{opacity:.4;cursor:default}
+.task{font:400 clamp(34px,6vw,60px)/1.15 "Inter",sans-serif;margin:6px 0 18px;white-space:nowrap}
+.ask{font-size:17px;color:var(--dim);margin-bottom:6px}
+.tf{display:flex;gap:14px;justify-content:center}
+.tf button{min-width:130px;font-size:18px}
+.timer{height:4px;background:var(--line);border-radius:4px;margin:20px auto 0;max-width:340px;overflow:hidden}
+.timer i{display:block;height:100%;background:var(--star);width:100%;transform-origin:left}
+.keys{font-size:13px;color:var(--dim);margin-top:10px}
+.grid{display:grid;grid-template-columns:repeat(var(--c,10),1fr);gap:2px;width:min(240px,50vw);margin:0 auto 16px}
+.pair{display:flex;gap:28px;justify-content:center;align-items:center;margin-bottom:16px}.pair .grid{width:min(130px,30vw);margin:0}
+.task.sm{font-size:clamp(20px,3.2vw,28px);white-space:normal;line-height:1.6}
+.grid i{aspect-ratio:1;background:#16353d;border-radius:2px}
+.grid i.on{background:var(--star)}
+.bar{display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between;align-items:center;margin-top:14px;min-height:46px}
+.msg{color:var(--dim);font-size:15px}
+.msg b{color:var(--ink)}
+.feedback{position:absolute;top:14px;left:50%;transform:translateX(-50%);font-size:15px;padding:4px 14px;border-radius:999px;background:#0008;pointer-events:none;opacity:0;transition:opacity .2s}
+.feedback.show{opacity:1}
+.big{font:400 clamp(44px,8vw,72px)/1 "Fraunces",Georgia,serif;margin:4px 0 6px}
+.stats{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;color:var(--dim);font-size:15px;margin-bottom:16px}
+.stats b{display:block;color:var(--ink);font-size:22px}
+.res-panel{place-items:end center;background:linear-gradient(transparent 45%,#07161bee 85%)}
+.legend{font-size:13px;color:var(--dim);margin-bottom:12px}
+.legend span{white-space:nowrap;margin:0 8px}
+.star{cursor:default}
+.pick .star{cursor:pointer}
+.star circle.core{fill:var(--star);transition:r .25s,fill .25s}
+.star circle.halo{fill:var(--flare);opacity:0;transition:opacity .25s}
+.star.lit circle.core{fill:var(--flare)}
+.star.lit circle.halo{opacity:.25}
+.star.chosen circle.core{fill:var(--flare)}
+.star text{font:600 2.2px "Inter",sans-serif;fill:#1a0d0a;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.pick .star:hover circle.core{fill:#fff}
+@media(prefers-reduced-motion:no-preference){.star.lit circle.halo{animation:pulse 1s ease-in-out infinite}}
+@keyframes pulse{50%{opacity:.45}}
+.hp{display:inline-flex;align-items:center;gap:8px;margin-right:18px;vertical-align:middle}
+.hp[hidden]{display:none}
+.hp .cells{display:inline-flex;gap:4px}
+.hp .cells i{width:26px;height:12px;border-radius:3px;background:var(--ok);transition:background .3s,transform .3s}
+.hp .cells i.lost{background:#2a3f44;transform:scaleY(.6)}
+.hp.low .cells i:not(.lost){background:var(--flare)}
+#pTask{background:#061216f2;z-index:2}
+#pTask .card{background:#0d262d;border:1px solid #2a5059;border-radius:16px;padding:22px 20px;box-shadow:0 20px 50px -20px #000}
+#pTask .task{color:#ffffff}
+#pTask .task b{color:#ffd23f !important;font-weight:600}
+#pTask .ask{color:#cfe0da}
+#pTask .grid i{background:#24474f}
+#pTask .grid i.on{background:#ffd23f}
+.board.tasking #sky{opacity:.08;transition:opacity .2s}
+.clown{position:absolute;inset:0;z-index:5;display:grid;place-items:center;background:#1a0608cc;text-align:center;pointer-events:none}
+.clown[hidden]{display:none}
+.clown svg{position:static;width:min(210px,42vw);height:auto}
+.clown p{font:400 clamp(24px,4vw,36px)/1.2 "Fraunces",Georgia,serif;color:#ffd23f;margin:8px 0 0}
+.clown small{display:block;color:#ffb3a8;font-size:15px;margin-top:6px}
+@media(prefers-reduced-motion:no-preference){.clown:not([hidden]) svg{animation:mock .25s ease-in-out 4 alternate}.clown:not([hidden]) p{animation:pop .3s ease-out}}
+@keyframes mock{from{transform:rotate(-9deg) scale(1)}to{transform:rotate(9deg) scale(1.08)}}
+@keyframes pop{from{transform:scale(.6);opacity:0}}
+footer{color:var(--dim);font-size:13px;margin-top:22px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Starline<small>Remember the order the stars light up</small></h1>
+    <div class="hud" id="hud"><a href="index.html" style="color:var(--dim);margin-right:16px">中文</a><span class="hp" id="hp" hidden></span>Best <b id="best">—</b></div>
+  </header>
+
+  <div class="board" id="board">
+    <svg id="sky" viewBox="0 0 160 100" preserveAspectRatio="none" aria-label="Star chart"></svg>
+
+    <div class="panel" id="pStart">
+      <div class="card">
+        <h2>The stars light up one by one</h2>
+        <p>After each star lights up, a puzzle interrupts you. After the last round, click every star that lit up, in the order it appeared.</p>
+        <div class="lab">Difficulty</div>
+        <div class="seg" id="diff">
+          <label><input type="radio" name="d" value="0">Easy · 5 of 24 stars</label>
+          <label><input type="radio" name="d" value="1" checked>Standard · 7 of 32 stars</label>
+          <label><input type="radio" name="d" value="2">Hard · 9 of 42 stars</label>
+          <label><input type="radio" name="d" value="3">Master · 12 of 54 stars</label>
+        </div>
+        <div class="lab">Puzzles</div>
+        <div class="seg" id="kinds">
+          <label><input type="checkbox" value="math" checked>Compare sums</label>
+          <label><input type="checkbox" value="seq" checked>Sequences</label>
+          <label><input type="checkbox" value="logic" checked>Logic</label>
+          <label><input type="checkbox" value="rot" checked>Rotation</label>
+          <label><input type="checkbox" value="sym" checked>Symmetry</label>
+        </div>
+        <button class="go" id="startBtn">Start</button>
+      </div>
+    </div>
+
+    <div class="panel" id="pTask" hidden>
+      <div class="card">
+        <div class="ask" id="ask"></div>
+        <div id="taskBody"></div>
+        <div class="tf">
+          <button id="yes">True ✓</button>
+          <button id="no">False ✗</button>
+        </div>
+        <div class="timer"><i id="timerBar"></i></div>
+        <div class="keys">Keys: ← or F for True, → or J for False</div>
+      </div>
+    </div>
+
+    <div class="panel res-panel" id="pResult" hidden>
+      <div class="card">
+        <div class="big" id="resBig"></div>
+        <div class="stats" id="resStats"></div>
+        <div class="legend" id="legend"><span style="color:var(--ok)">━ Correct order</span><span style="color:var(--bad)">┅ Your order</span></div>
+        <div class="tf"><button class="go" id="againBtn">Play again</button><button id="menuBtn">Change level</button><button id="copyBtn">Copy result</button></div>
+      </div>
+    </div>
+    <div class="feedback" id="fb"></div>
+    <div class="clown" id="clown" hidden><div>
+      <svg viewBox="0 0 200 200" aria-hidden="true">
+        <circle cx="38" cy="92" r="26" fill="#ff5a4f"/><circle cx="26" cy="118" r="20" fill="#4f9bff"/><circle cx="162" cy="92" r="26" fill="#45d08a"/><circle cx="174" cy="118" r="20" fill="#ffd23f"/>
+        <path d="M70 62 L100 4 L130 62 Z" fill="#c07bff"/><circle cx="100" cy="6" r="9" fill="#ffd23f"/><circle cx="92" cy="40" r="5" fill="#fff"/><circle cx="110" cy="52" r="5" fill="#fff"/>
+        <circle cx="100" cy="112" r="62" fill="#fff6ec"/>
+        <path d="M66 96 l12 -18 l12 18 l-12 18 Z" fill="#4f9bff"/><path d="M110 96 l12 -18 l12 18 l-12 18 Z" fill="#4f9bff"/>
+        <circle cx="78" cy="96" r="5" fill="#111"/><circle cx="122" cy="96" r="5" fill="#111"/>
+        <path d="M62 80 q16 -14 30 -4 M108 76 q14 -10 30 4" stroke="#111" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <path d="M58 128 q42 56 84 0 q-42 22 -84 0 Z" fill="#e2242f"/><path d="M66 132 q34 16 68 0 q-34 30 -68 0 Z" fill="#7a0d14"/><path d="M84 146 q16 10 32 0 q-16 12 -32 0Z" fill="#ff8fa0"/>
+        <circle cx="100" cy="118" r="15" fill="#ff2a36"/><circle cx="95" cy="112" r="4" fill="#fff" opacity=".7"/>
+        <circle cx="64" cy="124" r="8" fill="#ff8fa0" opacity=".6"/><circle cx="136" cy="124" r="8" fill="#ff8fa0" opacity=".6"/>
+      </svg>
+      <p id="taunt"></p><small id="tauntSub"></small>
+    </div></div>
+  </div>
+
+  <div class="bar">
+    <div class="msg" id="msg">Pick a difficulty, then press Start.</div>
+    <div class="tf" id="recallCtl" hidden>
+      <button id="undoBtn">Undo</button>
+      <button class="go" id="doneBtn" disabled>Submit</button>
+    </div>
+  </div>
+
+  <footer>How to play: each round one star lights up for about a second, then a true/false puzzle interrupts you (compare sums, number sequences, logic, shape rotation, symmetry; 12.5 to 16 seconds each). Then you return to the sky and the next star lights up. After the last round, click the stars in the order they lit. Your score is how many positions you got exactly right; your puzzle accuracy is shown too. Top right is your health bar: every wrong or timed-out puzzle summons a mocking clown and costs one block. When wrong answers reach 30% of the round count, the game ends.</footer>
+</div>
+
+<script>
+{
+const $ = id => document.getElementById(id);
+const sky = $('sky'), NS = 'http://www.w3.org/2000/svg';
+const LEVELS = [
+  {n:5,  stars:24, show:1400},
+  {n:7,  stars:32, show:1300},
+  {n:9,  stars:42, show:1200},
+  {n:12, stars:54, show:1100}
+];
+let G = null, bestKey = 'starlineBest';
+const rnd = (a,b) => a + Math.floor(Math.random()*(b-a+1));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function loadBest(){ try{ return JSON.parse(localStorage.getItem(bestKey)||'{}'); }catch(e){ return {}; } }
+function saveBest(b){ try{ localStorage.setItem(bestKey, JSON.stringify(b)); }catch(e){} }
+function showBest(){
+  const b = loadBest(), lv = curLevel();
+  $('best').textContent = b[lv] != null ? `${b[lv]} / ${LEVELS[lv].n}` : '—';
+}
+function curLevel(){ return +document.querySelector('#diff input:checked').value; }
+
+/* ---- sky drawing ---- */
+const bg = [];
+for(let i=0;i<120;i++) bg.push([Math.random()*160, Math.random()*100, Math.random()*.28+.08, Math.random()*.5+.15]);
+function el(tag, attrs, parent){ const e = document.createElementNS(NS, tag); for(const k in attrs) e.setAttribute(k, attrs[k]); (parent||sky).appendChild(e); return e; }
+
+function placeStars(count){
+  const pts = [];
+  let tries = 0, gap = Math.sqrt(136*80/count)*0.78;
+  while(pts.length < count){
+    if(++tries % 4000 === 0) gap *= 0.92;
+    const p = {x: 12 + Math.random()*136, y: 8 + Math.random()*84};
+    if(pts.every(q => Math.hypot((q.x-p.x)*0.8, q.y-p.y) > gap)) pts.push(p);
+  }
+  return pts;
+}
+
+function drawSky(){
+  sky.innerHTML = '';
+  // keep stars round despite preserveAspectRatio none: scale y radius by board aspect
+  const r = sky.clientWidth / sky.clientHeight / 1.6;
+  const g0 = el('g', {opacity:.35});
+  for(let x=20;x<160;x+=20) el('line',{x1:x,y1:0,x2:x,y2:100,stroke:'#2a5059','stroke-width':.12},g0);
+  for(let y=20;y<100;y+=20) el('line',{x1:0,y1:y,x2:160,y2:y,stroke:'#2a5059','stroke-width':.12},g0);
+  bg.forEach(([x,y,s,o]) => el('ellipse',{cx:x,cy:y,rx:s,ry:s*r,fill:'#cfe0da',opacity:o}));
+  if(!G) return;
+  G.lines = el('g', {});
+  G.stars.forEach((p,i) => {
+    const g = el('g', {class:'star', 'data-i':i, transform:`translate(${p.x} ${p.y}) scale(1 ${r})`});
+    el('circle',{class:'halo', r:4.6}, g);
+    el('circle',{class:'core', r:1.7}, g);
+    el('circle',{r:3.6, fill:'transparent'}, g);
+    el('text',{}, g);
+    p.g = g;
+  });
+  renderMarks();
+}
+function renderMarks(){
+  if(!G) return;
+  G.stars.forEach((p,i) => {
+    p.g.classList.toggle('lit', G.lit === i);
+    const k = G.picks.indexOf(i);
+    p.g.classList.toggle('chosen', k >= 0);
+    p.g.querySelector('.core').setAttribute('r', k >= 0 ? 2.1 : 1.7);
+    p.g.querySelector('text').textContent = k >= 0 ? k+1 : '';
+  });
+  if(G.phase === 'result') drawLines();
+}
+function drawLines(){
+  G.lines.innerHTML = '';
+  const path = (seq, color, dash, off) => {
+    if(seq.length < 2) return;
+    const d = seq.map((i,k) => `${k?'L':'M'}${G.stars[i].x+off} ${G.stars[i].y+off}`).join(' ');
+    el('path',{d, fill:'none', stroke:color, 'stroke-width':.5, 'stroke-dasharray':dash, 'stroke-linejoin':'round', 'vector-effect':'non-scaling-stroke', style:'stroke-width:2.5px'}, G.lines);
+  };
+  path(G.seq, '#7fe0c0', 'none', 0);
+  path(G.picks, '#ff6f59', '2 1.4', 0.4);
+}
+new ResizeObserver(drawSky).observe($('board'));
+
+/* ---- distractor tasks ---- */
+const NAMES = ['glimmers','sandfolk','mistbirds','crystal beasts','tidefolk','rock serpents','lightfish','wind foxes','moss sprites','fire moths','frost deer','cloud cats'];
+const LOGIC = [
+  ['All A are B. All B are C.','All A are C', true],
+  ['All A are B. Some B are C.','Some A are C', false],
+  ['No A are B. All C are A.','No C are B', true],
+  ['Some A are B. All B are C.','Some A are C', true],
+  ['All A are B. No C are B.','No C are A', true],
+  ['All A are B.','All B are A', false],
+  ['No A are B. Some C are B.','Some C are not A', true],
+  ['Some A are not B. All C are B.','Some A are not C', true],
+  ['All A are B. Some C are not A.','Some C are not B', false],
+  ['Some A are B. Some B are C.','Some A are C', false],
+  ['No A are B. No B are C.','No A are C', false],
+  ['All A are B. All A are C.','Some B are C', true],
+  ['All B are A. Some C are not A.','Some C are not B', true],
+  ['All A are B. All C are B.','All A are C', false]
+];
+const TIME = {math:13000, seq:14000, logic:16000, rot:14000, sym:12500};
+const TAUNTS = ['Ha! You got THAT wrong?','The clown was you all along','Brain lagging behind the eyes?','My cat solves these','Think again? Oh wait, too late','Even the stars are embarrassed','Is that all you got?','Back to clown school'];
+const SLOW = ['Too slow, the stars fell asleep','Still thinking? Nope.','Staring is not answering'];
+const shuffle = a => a.sort(() => Math.random()-.5);
+function rotSet(c){ return c.map(([x,y]) => [y,-x]); }
+function mirSet(c){ return c.map(([x,y]) => [-x,y]); }
+function norm(c){ const mx=Math.min(...c.map(p=>p[0])), my=Math.min(...c.map(p=>p[1])); return c.map(([x,y])=>[x-mx,y-my]).sort((a,b)=>a[0]-b[0]||a[1]-b[1]); }
+const key = c => JSON.stringify(norm(c));
+function gridHTML(c){
+  const n = norm(c), on = new Set(n.map(p=>p.join())), W = 4;
+  let h = `<div class="grid" style="--c:${W}">`;
+  for(let y=0;y<W;y++) for(let x=0;x<W;x++) h += `<i class="${on.has(x+','+y)?'on':''}"></i>`;
+  return h + '</div>';
+}
+function makeTask(kind){
+  const truth = Math.random() < .5;
+  if(kind === 'math'){
+    let L, Rv, a, b, c, d, e, f;
+    do{ a=rnd(12,29); b=rnd(3,9); c=rnd(11,59); d=rnd(12,29); e=rnd(3,9); f=rnd(11,59); L=a*b-c; Rv=d*e+f; }while(L===Rv || Math.abs(L-Rv)>9);
+    const t = L > Rv;
+    return {ask:'Is the left side bigger than the right?', html:`<div class="task">${a}×${b}−${c} &nbsp;?&nbsp; ${d}×${e}+${f}</div>`, truth:t};
+  }
+  if(kind === 'seq'){
+    const type = rnd(0,4), s0 = rnd(2,9), k = rnd(2,6); let seq = [];
+    if(type===0){ seq=[s0]; for(let i=0;i<5;i++) seq.push(seq[i]+k+i*2); }
+    else if(type===1){ seq=[s0]; for(let i=0;i<5;i++) seq.push(seq[i]*2+(i%2?1:-1)); }
+    else if(type===2){ seq=[rnd(1,5), rnd(2,6)]; while(seq.length<6) seq.push(seq.at(-1)+seq.at(-2)); }
+    else if(type===3){ const p=rnd(5,9), q=rnd(2,4); seq=[s0+10]; for(let i=0;i<5;i++) seq.push(seq[i] + (i%2? -q : p)); }
+    else { seq=[]; for(let i=1;i<=6;i++) seq.push(i*i + k*i - s0); }
+    const ans = seq.pop(), shown = truth ? ans : ans + (Math.random()<.5?-1:1)*rnd(1,3);
+    return {ask:'Is the highlighted number the next term?', html:`<div class="task sm">${seq.join(', ')}, <b style="color:var(--flare)">${shown}</b></div>`, truth};
+  }
+  if(kind === 'logic'){
+    const [pre, con, t] = LOGIC[rnd(0, LOGIC.length-1)];
+    const [A,B,C] = shuffle([...NAMES]).slice(0,3);
+    const sub = x => x.replace(/A/g,A).replace(/B/g,B).replace(/C/g,C);
+    return {ask:'If the premises are true, must the conclusion be true?', html:`<div class="task sm">${sub(pre)}<br>So: <b style="color:var(--flare)">${sub(con)}</b></div>`, truth:t};
+  }
+  if(kind === 'rot'){
+    let cells, m, rots;
+    do{
+      cells=[[0,0]];
+      while(cells.length<6){ const [x,y]=cells[rnd(0,cells.length-1)], d=[[1,0],[-1,0],[0,1],[0,-1]][rnd(0,3)], p=[x+d[0],y+d[1]];
+        if(!cells.some(q=>q[0]===p[0]&&q[1]===p[1])) cells.push(p); }
+      const nn = norm(cells), w = Math.max(...nn.map(p=>p[0])), h = Math.max(...nn.map(p=>p[1]));
+      rots=[cells]; for(let i=0;i<3;i++) rots.push(rotSet(rots.at(-1)));
+      m = mirSet(cells);
+      if(w>3||h>3) continue;
+    }while(Math.max(...norm(cells).flat())>3 || rots.some(r => key(r)===key(m)));
+    let right = truth ? rots[rnd(1,3)] : mirSet(rots[rnd(0,3)]);
+    return {ask:'Can the right shape match the left by rotating only (no flipping)?', html:`<div class="pair">${gridHTML(cells)}${gridHTML(right)}</div>`, truth};
+  }
+  const N = 10, cells = [];
+  for(let y=0;y<N;y++){ const row=[]; for(let x=0;x<N/2;x++) row.push(Math.random()<.45); cells.push(row.concat([...row].reverse())); }
+  if(!truth){ const y=rnd(0,N-1), x=rnd(0,N-1); cells[y][x] = !cells[y][x]; }
+  const html = `<div class="grid" style="--c:${N}">` + cells.flat().map(v => `<i class="${v?'on':''}"></i>`).join('') + '</div>';
+  return {ask:'Is the pattern perfectly mirror-symmetric left to right?', html, truth};
+}
+let answerFn = null;
+function runTask(){
+  const kinds = [...document.querySelectorAll('#kinds input:checked')].map(i => i.value);
+  const kind = kinds[rnd(0, kinds.length-1)], t = makeTask(kind), TASK_MS = TIME[kind];
+  $('ask').textContent = t.ask;
+  $('taskBody').innerHTML = t.html;
+  $('pTask').hidden = false; $('board').classList.add('tasking');
+  const bar = $('timerBar');
+  bar.style.transition = 'none'; bar.style.transform = 'scaleX(1)';
+  void bar.offsetWidth;
+  bar.style.transition = `transform ${TASK_MS}ms linear`; bar.style.transform = 'scaleX(0)';
+  return new Promise(res => {
+    const timer = setTimeout(() => finish(null), TASK_MS);
+    function finish(ans){
+      clearTimeout(timer); answerFn = null;
+      const ok = ans === t.truth;
+      $('pTask').hidden = true;
+      if(ok){ flash('Correct', true); $('board').classList.remove('tasking'); res(true); return; }
+      const list = ans === null ? SLOW : TAUNTS;
+      $('taunt').textContent = list[rnd(0, list.length-1)];
+      const left = G ? G.maxWrong - G.wrong - 1 : 0;
+      $('tauntSub').textContent = (ans === null ? 'Time up' : 'Wrong') + ', minus one health' + (left > 0 ? `, ${left} left` : ', out of health');
+      $('clown').hidden = false;
+      setTimeout(() => { $('clown').hidden = true; $('board').classList.remove('tasking'); res(false); }, 1600);
+    }
+    answerFn = finish;
+  });
+}
+$('yes').onclick = () => answerFn && answerFn(true);
+$('no').onclick = () => answerFn && answerFn(false);
+document.addEventListener('keydown', e => {
+  if(!answerFn) return;
+  const k = e.key.toLowerCase();
+  if(k === 'arrowleft' || k === 'f') answerFn(true);
+  if(k === 'arrowright' || k === 'j') answerFn(false);
+});
+let fbT;
+function flash(text, ok){
+  const f = $('fb'); f.textContent = text; f.style.color = ok ? 'var(--ok)' : 'var(--bad)';
+  f.classList.add('show'); clearTimeout(fbT); fbT = setTimeout(() => f.classList.remove('show'), 700);
+}
+
+/* ---- game flow ---- */
+async function start(){
+  const kinds = document.querySelectorAll('#kinds input:checked');
+  if(!kinds.length){ $('msg').textContent = 'Pick at least one puzzle type.'; return; }
+  const lv = curLevel(), L = LEVELS[lv];
+  const stars = placeStars(L.stars);
+  const idx = stars.map((_,i)=>i).sort(() => Math.random()-.5).slice(0, L.n);
+  G = {lv, L, stars, seq: idx, picks: [], lit: -1, phase: 'watch', taskOk: 0, wrong: 0, maxWrong: Math.ceil(L.n*0.3), id: Math.random()};
+  renderHP();
+  const me = G.id;
+  $('pStart').hidden = true; $('pResult').hidden = true; $('recallCtl').hidden = true;
+  $('board').classList.remove('pick');
+  drawSky();
+  for(let r=0; r<L.n; r++){
+    $('msg').innerHTML = `Star <b>${r+1}</b> of ${L.n}: remember where it lights up`;
+    await sleep(700); if(G.id !== me) return;
+    G.lit = idx[r]; renderMarks();
+    await sleep(L.show); if(G.id !== me) return;
+    G.lit = -1; renderMarks();
+    await sleep(250);
+    $('msg').innerHTML = `Star <b>${r+1}</b> of ${L.n}: solve the puzzle`;
+    if(await runTask()) G.taskOk++;
+    else { G.wrong++; renderHP(); }
+    if(G.id !== me) return;
+    if(G.wrong >= G.maxWrong){ gameOver(r+1); return; }
+  }
+  G.phase = 'recall';
+  $('board').classList.add('pick');
+  $('recallCtl').hidden = false;
+  updateRecall();
+}
+function renderHP(){
+  const h = $('hp');
+  if(!G){ h.hidden = true; return; }
+  const left = G.maxWrong - G.wrong;
+  h.hidden = false;
+  h.classList.toggle('low', left <= 1);
+  h.innerHTML = 'Health <span class="cells">' + Array.from({length:G.maxWrong}, (_,i) => `<i class="${i < left ? '' : 'lost'}"></i>`).join('') + '</span>';
+  h.title = `${left} more wrong answers ends the game`;
+}
+function gameOver(done){
+  G.phase = 'over'; G.done = done;
+  $('pTask').hidden = true;
+  $('legend').hidden = true;
+  $('resBig').textContent = 'Out of health';
+  $('resStats').innerHTML = `<div><b>${G.wrong}</b>puzzles wrong (limit ${G.maxWrong}, 30% of rounds)</div><div><b>${done} / ${G.L.n}</b>rounds reached</div>`;
+  $('msg').textContent = 'Too many wrong puzzles, game over. Try again!';
+  $('pResult').hidden = false;
+}
+function updateRecall(){
+  $('msg').innerHTML = `Click the stars in order: <b>${G.picks.length}</b> of ${G.L.n} picked`;
+  $('doneBtn').disabled = G.picks.length !== G.L.n;
+  $('undoBtn').disabled = !G.picks.length;
+}
+sky.addEventListener('click', e => {
+  if(!G || G.phase !== 'recall') return;
+  const g = e.target.closest('.star'); if(!g) return;
+  const i = +g.dataset.i, k = G.picks.indexOf(i);
+  if(k >= 0){ if(k === G.picks.length-1) G.picks.pop(); }
+  else if(G.picks.length < G.L.n) G.picks.push(i);
+  renderMarks(); updateRecall();
+});
+$('undoBtn').onclick = () => { if(G && G.phase==='recall'){ G.picks.pop(); renderMarks(); updateRecall(); } };
+$('doneBtn').onclick = finish;
+function finish(){
+  G.phase = 'result';
+  $('board').classList.remove('pick');
+  $('recallCtl').hidden = true;
+  const right = G.seq.filter((v,k) => G.picks[k] === v).length;
+  const found = G.seq.filter(v => G.picks.includes(v)).length;
+  const n = G.L.n;
+  G.score = right;
+  const best = loadBest();
+  const isNew = best[G.lv] == null || right > best[G.lv];
+  if(isNew){ best[G.lv] = right; saveBest(best); }
+  showBest();
+  const word = right === n ? 'Perfect chart' : right >= n*.6 ? 'Mostly right' : 'A bit hazy';
+  $('resBig').textContent = `${right} / ${n}`;
+  $('resStats').innerHTML = `<div><b>${word}</b>positions exactly right</div><div><b>${found} / ${n}</b>stars found (any order)</div><div><b>${Math.round(G.taskOk/n*100)}%</b>puzzle accuracy</div>` + (isNew ? '<div><b>New record</b>best at this level</div>' : '');
+  $('msg').innerHTML = 'Green is the correct order, the dashed red line is yours.';
+  $('legend').hidden = false;
+  $('pResult').hidden = false;
+  renderMarks();
+}
+$('startBtn').onclick = start;
+$('againBtn').onclick = start;
+$('menuBtn').onclick = () => { G = null; renderHP(); drawSky(); $('pResult').hidden = true; $('pStart').hidden = false; $('msg').textContent = 'Pick a difficulty, then press Start.'; };
+$('copyBtn').onclick = async () => {
+  const names = ['Easy','Standard','Hard','Master'];
+  if(G.phase === 'over'){ G.score = 0; }
+  const t = G.phase === 'over' ? `I ran out of health in round ${G.done} on ${names[G.lv]} in Starline. Think you can do better?` : `I got ${G.score}/${G.L.n} stars in the right order on ${names[G.lv]} in Starline, with ${Math.round(G.taskOk/G.L.n*100)}% puzzle accuracy. Beat that!`;
+  try{ await navigator.clipboard.writeText(t); $('copyBtn').textContent = 'Copied'; }
+  catch(e){ $('copyBtn').textContent = 'Copy failed'; }
+  setTimeout(() => $('copyBtn').textContent = 'Copy result', 1500);
+};
+document.querySelectorAll('#diff input').forEach(i => i.onchange = showBest);
+showBest();
+}
+</script>
+</body>
+</html>

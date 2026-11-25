@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>星序 · 记忆游戏</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=ZCOOL+XiaoWei&family=Noto+Sans+SC:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: quiet, nocturnal, a little magical; a game you play in a dark room
+   IDEA: an observatory star chart; each round a star flares, at the end you redraw the constellation
+   PICTURE: the sky field itself, large, with stars, a faint grid and the drawn constellation on results
+   COLOUR and TYPE: deep sea-ink night, ivory stars, one coral flare; ZCOOL XiaoWei titles, Noto Sans SC body
+   LAYOUT: modest header, the sky board fills the screen, controls in one row beneath */
+:root{color-scheme:dark;--bg:#07161b;--sky:#0b2229;--line:#1d3d45;--ink:#eef3ee;--dim:#8fa9aa;--star:#f4efdc;--flare:#ff6f59;--ok:#7fe0c0;--bad:#ff6f59}
+:root[data-theme=light],:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Noto Sans SC",system-ui,sans-serif;overflow-x:clip;min-height:100vh}
+.wrap{max-width:1100px;margin:0 auto;padding:clamp(14px,3vw,32px) max(4vw,14px) 40px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+h1{font:400 clamp(32px,5vw,46px)/1.05 "ZCOOL XiaoWei",serif;margin:0;letter-spacing:.04em}
+h1 small{font:15px "Noto Sans SC",sans-serif;color:var(--dim);margin-left:10px;letter-spacing:0}
+.hud{color:var(--dim);font-size:15px;white-space:nowrap}
+.hud b{color:var(--ink);font-weight:600}
+.board{position:relative;background:radial-gradient(120% 90% at 30% 10%,#123540 0%,var(--sky) 55%,#081a20 100%);border:1px solid var(--line);border-radius:18px;overflow:hidden;aspect-ratio:16/10;max-height:72vh;width:100%;box-shadow:0 30px 60px -30px #000}
+@media(max-width:600px){.board{aspect-ratio:4/5;max-height:none}}
+.board svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.panel{position:absolute;inset:0;display:grid;place-items:center;padding:20px;text-align:center}
+.panel[hidden]{display:none}
+.card{max-width:560px;width:100%}
+.card h2{font:400 clamp(28px,4vw,40px)/1.1 "ZCOOL XiaoWei",serif;margin:0 0 10px}
+.card p{color:var(--dim);margin:0 0 18px}
+.seg{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:0 0 14px}
+.seg label{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border:1px solid var(--line);border-radius:999px;cursor:pointer;background:#0a1d23;font-size:15px}
+.seg input{accent-color:var(--flare)}
+.seg label:has(input:checked){border-color:var(--star);background:#13323a}
+.lab{font-size:13px;color:var(--dim);margin:6px 0}
+button{font:600 16px "Noto Sans SC",sans-serif;min-height:46px;padding:0 24px;border-radius:999px;border:1px solid var(--line);background:#10303a;color:var(--ink);cursor:pointer}
+button:hover{background:#174450}
+button:focus-visible,.seg label:focus-within{outline:2px solid var(--flare);outline-offset:2px}
+button.go{background:var(--flare);border-color:var(--flare);color:#1a0d0a}
+button.go:hover{background:#ff8672}
+button:disabled{opacity:.4;cursor:default}
+.task{font:400 clamp(34px,6vw,60px)/1.15 "Noto Sans SC",sans-serif;margin:6px 0 18px;white-space:nowrap}
+.ask{font-size:17px;color:var(--dim);margin-bottom:6px}
+.tf{display:flex;gap:14px;justify-content:center}
+.tf button{min-width:130px;font-size:18px}
+.timer{height:4px;background:var(--line);border-radius:4px;margin:20px auto 0;max-width:340px;overflow:hidden}
+.timer i{display:block;height:100%;background:var(--star);width:100%;transform-origin:left}
+.keys{font-size:13px;color:var(--dim);margin-top:10px}
+.grid{display:grid;grid-template-columns:repeat(var(--c,10),1fr);gap:2px;width:min(240px,50vw);margin:0 auto 16px}
+.pair{display:flex;gap:28px;justify-content:center;align-items:center;margin-bottom:16px}.pair .grid{width:min(130px,30vw);margin:0}
+.task.sm{font-size:clamp(20px,3.2vw,28px);white-space:normal;line-height:1.6}
+.grid i{aspect-ratio:1;background:#16353d;border-radius:2px}
+.grid i.on{background:var(--star)}
+.bar{display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between;align-items:center;margin-top:14px;min-height:46px}
+.msg{color:var(--dim);font-size:15px}
+.msg b{color:var(--ink)}
+.feedback{position:absolute;top:14px;left:50%;transform:translateX(-50%);font-size:15px;padding:4px 14px;border-radius:999px;background:#0008;pointer-events:none;opacity:0;transition:opacity .2s}
+.feedback.show{opacity:1}
+.big{font:400 clamp(44px,8vw,72px)/1 "ZCOOL XiaoWei",serif;margin:4px 0 6px}
+.stats{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;color:var(--dim);font-size:15px;margin-bottom:16px}
+.stats b{display:block;color:var(--ink);font-size:22px}
+.res-panel{place-items:end center;background:linear-gradient(transparent 45%,#07161bee 85%)}
+.legend{font-size:13px;color:var(--dim);margin-bottom:12px}
+.legend span{white-space:nowrap;margin:0 8px}
+.star{cursor:default}
+.pick .star{cursor:pointer}
+.star circle.core{fill:var(--star);transition:r .25s,fill .25s}
+.star circle.halo{fill:var(--flare);opacity:0;transition:opacity .25s}
+.star.lit circle.core{fill:var(--flare)}
+.star.lit circle.halo{opacity:.25}
+.star.chosen circle.core{fill:var(--flare)}
+.star text{font:600 2.2px "Noto Sans SC",sans-serif;fill:#1a0d0a;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.pick .star:hover circle.core{fill:#fff}
+@media(prefers-reduced-motion:no-preference){.star.lit circle.halo{animation:pulse 1s ease-in-out infinite}}
+@keyframes pulse{50%{opacity:.45}}
+.hp{display:inline-flex;align-items:center;gap:8px;margin-right:18px;vertical-align:middle}
+.hp[hidden]{display:none}
+.hp .cells{display:inline-flex;gap:4px}
+.hp .cells i{width:26px;height:12px;border-radius:3px;background:var(--ok);transition:background .3s,transform .3s}
+.hp .cells i.lost{background:#2a3f44;transform:scaleY(.6)}
+.hp.low .cells i:not(.lost){background:var(--flare)}
+#pTask{background:#061216f2;z-index:2}
+#pTask .card{background:#0d262d;border:1px solid #2a5059;border-radius:16px;padding:22px 20px;box-shadow:0 20px 50px -20px #000}
+#pTask .task{color:#ffffff}
+#pTask .task b{color:#ffd23f !important;font-weight:600}
+#pTask .ask{color:#cfe0da}
+#pTask .grid i{background:#24474f}
+#pTask .grid i.on{background:#ffd23f}
+.board.tasking #sky{opacity:.08;transition:opacity .2s}
+.clown{position:absolute;inset:0;z-index:5;display:grid;place-items:center;background:#1a0608cc;text-align:center;pointer-events:none}
+.clown[hidden]{display:none}
+.clown svg{position:static;width:min(210px,42vw);height:auto}
+.clown p{font:400 clamp(24px,4vw,36px)/1.2 "ZCOOL XiaoWei",serif;color:#ffd23f;margin:8px 0 0}
+.clown small{display:block;color:#ffb3a8;font-size:15px;margin-top:6px}
+@media(prefers-reduced-motion:no-preference){.clown:not([hidden]) svg{animation:mock .25s ease-in-out 4 alternate}.clown:not([hidden]) p{animation:pop .3s ease-out}}
+@keyframes mock{from{transform:rotate(-9deg) scale(1)}to{transform:rotate(9deg) scale(1.08)}}
+@keyframes pop{from{transform:scale(.6);opacity:0}}
+footer{color:var(--dim);font-size:13px;margin-top:22px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>星序<small>记住星星亮起的顺序</small></h1>
+    <div class="hud" id="hud"><a href="en.html" style="color:var(--dim);margin-right:16px">English</a><span class="hp" id="hp" hidden></span>最佳成绩 <b id="best">—</b></div>
+  </header>
+
+  <div class="board" id="board">
+    <svg id="sky" viewBox="0 0 160 100" preserveAspectRatio="none" aria-label="星图"></svg>
+
+    <div class="panel" id="pStart">
+      <div class="card">
+        <h2>夜空中的星会一颗颗亮起</h2>
+        <p>每颗星亮起后，会先插入一道判断题打断你。几轮之后，按亮起的先后顺序点出所有亮过的星。</p>
+        <div class="lab">难度</div>
+        <div class="seg" id="diff">
+          <label><input type="radio" name="d" value="0">入门 · 记 5 颗 / 共 24 颗</label>
+          <label><input type="radio" name="d" value="1" checked>标准 · 记 7 颗 / 共 32 颗</label>
+          <label><input type="radio" name="d" value="2">挑战 · 记 9 颗 / 共 42 颗</label>
+          <label><input type="radio" name="d" value="3">大师 · 记 12 颗 / 共 54 颗</label>
+        </div>
+        <div class="lab">干扰题</div>
+        <div class="seg" id="kinds">
+          <label><input type="checkbox" value="math" checked>算式比大小</label>
+          <label><input type="checkbox" value="seq" checked>数列规律</label>
+          <label><input type="checkbox" value="logic" checked>逻辑推理</label>
+          <label><input type="checkbox" value="rot" checked>图形旋转</label>
+          <label><input type="checkbox" value="sym" checked>图案对称</label>
+        </div>
+        <button class="go" id="startBtn">开始观星</button>
+      </div>
+    </div>
+
+    <div class="panel" id="pTask" hidden>
+      <div class="card">
+        <div class="ask" id="ask"></div>
+        <div id="taskBody"></div>
+        <div class="tf">
+          <button id="yes">对 ✓</button>
+          <button id="no">错 ✗</button>
+        </div>
+        <div class="timer"><i id="timerBar"></i></div>
+        <div class="keys">键盘：← 或 F 选“对”，→ 或 J 选“错”</div>
+      </div>
+    </div>
+
+    <div class="panel res-panel" id="pResult" hidden>
+      <div class="card">
+        <div class="big" id="resBig"></div>
+        <div class="stats" id="resStats"></div>
+        <div class="legend" id="legend"><span style="color:var(--ok)">━ 正确顺序</span><span style="color:var(--bad)">┅ 你的顺序</span></div>
+        <div class="tf"><button class="go" id="againBtn">再来一局</button><button id="menuBtn">换难度</button><button id="copyBtn">复制成绩</button></div>
+      </div>
+    </div>
+    <div class="feedback" id="fb"></div>
+    <div class="clown" id="clown" hidden><div>
+      <svg viewBox="0 0 200 200" aria-hidden="true">
+        <circle cx="38" cy="92" r="26" fill="#ff5a4f"/><circle cx="26" cy="118" r="20" fill="#4f9bff"/><circle cx="162" cy="92" r="26" fill="#45d08a"/><circle cx="174" cy="118" r="20" fill="#ffd23f"/>
+        <path d="M70 62 L100 4 L130 62 Z" fill="#c07bff"/><circle cx="100" cy="6" r="9" fill="#ffd23f"/><circle cx="92" cy="40" r="5" fill="#fff"/><circle cx="110" cy="52" r="5" fill="#fff"/>
+        <circle cx="100" cy="112" r="62" fill="#fff6ec"/>
+        <path d="M66 96 l12 -18 l12 18 l-12 18 Z" fill="#4f9bff"/><path d="M110 96 l12 -18 l12 18 l-12 18 Z" fill="#4f9bff"/>
+        <circle cx="78" cy="96" r="5" fill="#111"/><circle cx="122" cy="96" r="5" fill="#111"/>
+        <path d="M62 80 q16 -14 30 -4 M108 76 q14 -10 30 4" stroke="#111" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <path d="M58 128 q42 56 84 0 q-42 22 -84 0 Z" fill="#e2242f"/><path d="M66 132 q34 16 68 0 q-34 30 -68 0 Z" fill="#7a0d14"/><path d="M84 146 q16 10 32 0 q-16 12 -32 0Z" fill="#ff8fa0"/>
+        <circle cx="100" cy="118" r="15" fill="#ff2a36"/><circle cx="95" cy="112" r="4" fill="#fff" opacity=".7"/>
+        <circle cx="64" cy="124" r="8" fill="#ff8fa0" opacity=".6"/><circle cx="136" cy="124" r="8" fill="#ff8fa0" opacity=".6"/>
+      </svg>
+      <p id="taunt"></p><small id="tauntSub"></small>
+    </div></div>
+  </div>
+
+  <div class="bar">
+    <div class="msg" id="msg">选择难度后点“开始观星”。</div>
+    <div class="tf" id="recallCtl" hidden>
+      <button id="undoBtn">撤销</button>
+      <button class="go" id="doneBtn" disabled>提交</button>
+    </div>
+  </div>
+
+  <footer>玩法：每轮一颗星亮起约 1 秒多，随后出现一道需要思考的对/错判断题（算式比大小、数列规律、逻辑推理、图形旋转、图案对称，限时 12.5 到 16 秒），答完回到星空，下一颗星亮起。全部轮次结束后，按顺序点击亮过的星。得分看顺序记对了几位，判断题的正确率也会一并统计。右上角是血条：判断题每答错（或超时）一道，会跳出小丑嘲笑你并扣一格，错题达到本局总题数的 30% 时游戏直接结束。</footer>
+</div>
+
+<script>
+{
+const $ = id => document.getElementById(id);
+const sky = $('sky'), NS = 'http://www.w3.org/2000/svg';
+const LEVELS = [
+  {n:5,  stars:24, show:1400},
+  {n:7,  stars:32, show:1300},
+  {n:9,  stars:42, show:1200},
+  {n:12, stars:54, show:1100}
+];
+let G = null, bestKey = 'starOrderBest';
+const rnd = (a,b) => a + Math.floor(Math.random()*(b-a+1));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function loadBest(){ try{ return JSON.parse(localStorage.getItem(bestKey)||'{}'); }catch(e){ return {}; } }
+function saveBest(b){ try{ localStorage.setItem(bestKey, JSON.stringify(b)); }catch(e){} }
+function showBest(){
+  const b = loadBest(), lv = curLevel();
+  $('best').textContent = b[lv] != null ? `${b[lv]} / ${LEVELS[lv].n}` : '—';
+}
+function curLevel(){ return +document.querySelector('#diff input:checked').value; }
+
+/* ---- sky drawing ---- */
+const bg = [];
+for(let i=0;i<120;i++) bg.push([Math.random()*160, Math.random()*100, Math.random()*.28+.08, Math.random()*.5+.15]);
+function el(tag, attrs, parent){ const e = document.createElementNS(NS, tag); for(const k in attrs) e.setAttribute(k, attrs[k]); (parent||sky).appendChild(e); return e; }
+
+function placeStars(count){
+  const pts = [];
+  let tries = 0, gap = Math.sqrt(136*80/count)*0.78;
+  while(pts.length < count){
+    if(++tries % 4000 === 0) gap *= 0.92;
+    const p = {x: 12 + Math.random()*136, y: 8 + Math.random()*84};
+    if(pts.every(q => Math.hypot((q.x-p.x)*0.8, q.y-p.y) > gap)) pts.push(p);
+  }
+  return pts;
+}
+
+function drawSky(){
+  sky.innerHTML = '';
+  // keep stars round despite preserveAspectRatio none: scale y radius by board aspect
+  const r = sky.clientWidth / sky.clientHeight / 1.6;
+  const g0 = el('g', {opacity:.35});
+  for(let x=20;x<160;x+=20) el('line',{x1:x,y1:0,x2:x,y2:100,stroke:'#2a5059','stroke-width':.12},g0);
+  for(let y=20;y<100;y+=20) el('line',{x1:0,y1:y,x2:160,y2:y,stroke:'#2a5059','stroke-width':.12},g0);
+  bg.forEach(([x,y,s,o]) => el('ellipse',{cx:x,cy:y,rx:s,ry:s*r,fill:'#cfe0da',opacity:o}));
+  if(!G) return;
+  G.lines = el('g', {});
+  G.stars.forEach((p,i) => {
+    const g = el('g', {class:'star', 'data-i':i, transform:`translate(${p.x} ${p.y}) scale(1 ${r})`});
+    el('circle',{class:'halo', r:4.6}, g);
+    el('circle',{class:'core', r:1.7}, g);
+    el('circle',{r:3.6, fill:'transparent'}, g);
+    el('text',{}, g);
+    p.g = g;
+  });
+  renderMarks();
+}
+function renderMarks(){
+  if(!G) return;
+  G.stars.forEach((p,i) => {
+    p.g.classList.toggle('lit', G.lit === i);
+    const k = G.picks.indexOf(i);
+    p.g.classList.toggle('chosen', k >= 0);
+    p.g.querySelector('.core').setAttribute('r', k >= 0 ? 2.1 : 1.7);
+    p.g.querySelector('text').textContent = k >= 0 ? k+1 : '';
+  });
+  if(G.phase === 'result') drawLines();
+}
+function drawLines(){
+  G.lines.innerHTML = '';
+  const path = (seq, color, dash, off) => {
+    if(seq.length < 2) return;
+    const d = seq.map((i,k) => `${k?'L':'M'}${G.stars[i].x+off} ${G.stars[i].y+off}`).join(' ');
+    el('path',{d, fill:'none', stroke:color, 'stroke-width':.5, 'stroke-dasharray':dash, 'stroke-linejoin':'round', 'vector-effect':'non-scaling-stroke', style:'stroke-width:2.5px'}, G.lines);
+  };
+  path(G.seq, '#7fe0c0', 'none', 0);
+  path(G.picks, '#ff6f59', '2 1.4', 0.4);
+}
+new ResizeObserver(drawSky).observe($('board'));
+
+/* ---- distractor tasks ---- */
+const NAMES = ['星灵','砂民','雾鸟','晶兽','潮人','岩蛇','光鱼','风狐','苔精','火蝶','冰鹿','云豹'];
+const LOGIC = [
+  ['所有A都是B，所有B都是C。','所有A都是C', true],
+  ['所有A都是B，有些B是C。','有些A是C', false],
+  ['没有A是B，所有C都是A。','没有C是B', true],
+  ['有些A是B，所有B都是C。','有些A是C', true],
+  ['所有A都是B，没有C是B。','没有C是A', true],
+  ['所有A都是B。','所有B都是A', false],
+  ['没有A是B，有些C是B。','有些C不是A', true],
+  ['有些A不是B，所有C都是B。','有些A不是C', true],
+  ['所有A都是B，有些C不是A。','有些C不是B', false],
+  ['有些A是B，有些B是C。','有些A是C', false],
+  ['没有A是B，没有B是C。','没有A是C', false],
+  ['所有A都是B，所有A都是C。','有些B是C', true],
+  ['所有B都是A，有些C不是A。','有些C不是B', true],
+  ['所有A都是B，所有C都是B。','所有A都是C', false]
+];
+const TIME = {math:13000, seq:14000, logic:16000, rot:14000, sym:12500};
+const TAUNTS = ['哈哈哈，这都能错？','小丑竟是你自己','脑子跟不上眼睛了吧','这题我家猫都会','再想想？哦，来不及了','星星都替你尴尬','就这？','建议回炉重造'];
+const SLOW = ['太慢啦，星星都睡着了','想好了吗？没有。','发呆可不算答题'];
+const shuffle = a => a.sort(() => Math.random()-.5);
+function rotSet(c){ return c.map(([x,y]) => [y,-x]); }
+function mirSet(c){ return c.map(([x,y]) => [-x,y]); }
+function norm(c){ const mx=Math.min(...c.map(p=>p[0])), my=Math.min(...c.map(p=>p[1])); return c.map(([x,y])=>[x-mx,y-my]).sort((a,b)=>a[0]-b[0]||a[1]-b[1]); }
+const key = c => JSON.stringify(norm(c));
+function gridHTML(c){
+  const n = norm(c), on = new Set(n.map(p=>p.join())), W = 4;
+  let h = `<div class="grid" style="--c:${W}">`;
+  for(let y=0;y<W;y++) for(let x=0;x<W;x++) h += `<i class="${on.has(x+','+y)?'on':''}"></i>`;
+  return h + '</div>';
+}
+function makeTask(kind){
+  const truth = Math.random() < .5;
+  if(kind === 'math'){
+    let L, Rv, a, b, c, d, e, f;
+    do{ a=rnd(12,29); b=rnd(3,9); c=rnd(11,59); d=rnd(12,29); e=rnd(3,9); f=rnd(11,59); L=a*b-c; Rv=d*e+f; }while(L===Rv || Math.abs(L-Rv)>9);
+    const t = L > Rv;
+    return {ask:'左边比右边大吗？', html:`<div class="task">${a}×${b}−${c}　?　${d}×${e}+${f}</div>`, truth:t};
+  }
+  if(kind === 'seq'){
+    const type = rnd(0,4), s0 = rnd(2,9), k = rnd(2,6); let seq = [];
+    if(type===0){ seq=[s0]; for(let i=0;i<5;i++) seq.push(seq[i]+k+i*2); }
+    else if(type===1){ seq=[s0]; for(let i=0;i<5;i++) seq.push(seq[i]*2+(i%2?1:-1)); }
+    else if(type===2){ seq=[rnd(1,5), rnd(2,6)]; while(seq.length<6) seq.push(seq.at(-1)+seq.at(-2)); }
+    else if(type===3){ const p=rnd(5,9), q=rnd(2,4); seq=[s0+10]; for(let i=0;i<5;i++) seq.push(seq[i] + (i%2? -q : p)); }
+    else { seq=[]; for(let i=1;i<=6;i++) seq.push(i*i + k*i - s0); }
+    const ans = seq.pop(), shown = truth ? ans : ans + (Math.random()<.5?-1:1)*rnd(1,3);
+    return {ask:'数列的下一项是它吗？', html:`<div class="task sm">${seq.join('，')}，<b style="color:var(--flare)">${shown}</b></div>`, truth};
+  }
+  if(kind === 'logic'){
+    const [pre, con, t] = LOGIC[rnd(0, LOGIC.length-1)];
+    const [A,B,C] = shuffle([...NAMES]).slice(0,3);
+    const sub = x => x.replace(/A/g,A).replace(/B/g,B).replace(/C/g,C);
+    return {ask:'前提成立时，结论一定成立吗？', html:`<div class="task sm">${sub(pre)}<br>结论：<b style="color:var(--flare)">${sub(con)}</b></div>`, truth:t};
+  }
+  if(kind === 'rot'){
+    let cells, m, rots;
+    do{
+      cells=[[0,0]];
+      while(cells.length<6){ const [x,y]=cells[rnd(0,cells.length-1)], d=[[1,0],[-1,0],[0,1],[0,-1]][rnd(0,3)], p=[x+d[0],y+d[1]];
+        if(!cells.some(q=>q[0]===p[0]&&q[1]===p[1])) cells.push(p); }
+      const nn = norm(cells), w = Math.max(...nn.map(p=>p[0])), h = Math.max(...nn.map(p=>p[1]));
+      rots=[cells]; for(let i=0;i<3;i++) rots.push(rotSet(rots.at(-1)));
+      m = mirSet(cells);
+      if(w>3||h>3) continue;
+    }while(Math.max(...norm(cells).flat())>3 || rots.some(r => key(r)===key(m)));
+    let right = truth ? rots[rnd(1,3)] : mirSet(rots[rnd(0,3)]);
+    return {ask:'右边的图形只靠旋转（不翻转）能和左边重合吗？', html:`<div class="pair">${gridHTML(cells)}${gridHTML(right)}</div>`, truth};
+  }
+  const N = 10, cells = [];
+  for(let y=0;y<N;y++){ const row=[]; for(let x=0;x<N/2;x++) row.push(Math.random()<.45); cells.push(row.concat([...row].reverse())); }
+  if(!truth){ const y=rnd(0,N-1), x=rnd(0,N-1); cells[y][x] = !cells[y][x]; }
+  const html = `<div class="grid" style="--c:${N}">` + cells.flat().map(v => `<i class="${v?'on':''}"></i>`).join('') + '</div>';
+  return {ask:'图案左右完全对称吗？', html, truth};
+}
+let answerFn = null;
+function runTask(){
+  const kinds = [...document.querySelectorAll('#kinds input:checked')].map(i => i.value);
+  const kind = kinds[rnd(0, kinds.length-1)], t = makeTask(kind), TASK_MS = TIME[kind];
+  $('ask').textContent = t.ask;
+  $('taskBody').innerHTML = t.html;
+  $('pTask').hidden = false; $('board').classList.add('tasking');
+  const bar = $('timerBar');
+  bar.style.transition = 'none'; bar.style.transform = 'scaleX(1)';
+  void bar.offsetWidth;
+  bar.style.transition = `transform ${TASK_MS}ms linear`; bar.style.transform = 'scaleX(0)';
+  return new Promise(res => {
+    const timer = setTimeout(() => finish(null), TASK_MS);
+    function finish(ans){
+      clearTimeout(timer); answerFn = null;
+      const ok = ans === t.truth;
+      $('pTask').hidden = true;
+      if(ok){ flash('答对了', true); $('board').classList.remove('tasking'); res(true); return; }
+      const list = ans === null ? SLOW : TAUNTS;
+      $('taunt').textContent = list[rnd(0, list.length-1)];
+      const left = G ? G.maxWrong - G.wrong - 1 : 0;
+      $('tauntSub').textContent = (ans === null ? '超时' : '答错了') + `，扣一格血` + (left > 0 ? `，还剩 ${left} 格` : '，血量耗尽');
+      $('clown').hidden = false;
+      setTimeout(() => { $('clown').hidden = true; $('board').classList.remove('tasking'); res(false); }, 1600);
+    }
+    answerFn = finish;
+  });
+}
+$('yes').onclick = () => answerFn && answerFn(true);
+$('no').onclick = () => answerFn && answerFn(false);
+document.addEventListener('keydown', e => {
+  if(!answerFn) return;
+  const k = e.key.toLowerCase();
+  if(k === 'arrowleft' || k === 'f') answerFn(true);
+  if(k === 'arrowright' || k === 'j') answerFn(false);
+});
+let fbT;
+function flash(text, ok){
+  const f = $('fb'); f.textContent = text; f.style.color = ok ? 'var(--ok)' : 'var(--bad)';
+  f.classList.add('show'); clearTimeout(fbT); fbT = setTimeout(() => f.classList.remove('show'), 700);
+}
+
+/* ---- game flow ---- */
+async function start(){
+  const kinds = document.querySelectorAll('#kinds input:checked');
+  if(!kinds.length){ $('msg').textContent = '至少选一种干扰题。'; return; }
+  const lv = curLevel(), L = LEVELS[lv];
+  const stars = placeStars(L.stars);
+  const idx = stars.map((_,i)=>i).sort(() => Math.random()-.5).slice(0, L.n);
+  G = {lv, L, stars, seq: idx, picks: [], lit: -1, phase: 'watch', taskOk: 0, wrong: 0, maxWrong: Math.ceil(L.n*0.3), id: Math.random()};
+  renderHP();
+  const me = G.id;
+  $('pStart').hidden = true; $('pResult').hidden = true; $('recallCtl').hidden = true;
+  $('board').classList.remove('pick');
+  drawSky();
+  for(let r=0; r<L.n; r++){
+    $('msg').innerHTML = `第 <b>${r+1}</b> / ${L.n} 颗：记住亮起的星`;
+    await sleep(700); if(G.id !== me) return;
+    G.lit = idx[r]; renderMarks();
+    await sleep(L.show); if(G.id !== me) return;
+    G.lit = -1; renderMarks();
+    await sleep(250);
+    $('msg').innerHTML = `第 <b>${r+1}</b> / ${L.n} 颗：先回答判断题`;
+    if(await runTask()) G.taskOk++;
+    else { G.wrong++; renderHP(); }
+    if(G.id !== me) return;
+    if(G.wrong >= G.maxWrong){ gameOver(r+1); return; }
+  }
+  G.phase = 'recall';
+  $('board').classList.add('pick');
+  $('recallCtl').hidden = false;
+  updateRecall();
+}
+function renderHP(){
+  const h = $('hp');
+  if(!G){ h.hidden = true; return; }
+  const left = G.maxWrong - G.wrong;
+  h.hidden = false;
+  h.classList.toggle('low', left <= 1);
+  h.innerHTML = '血量 <span class="cells">' + Array.from({length:G.maxWrong}, (_,i) => `<i class="${i < left ? '' : 'lost'}"></i>`).join('') + '</span>';
+  h.title = `判断题再错 ${left} 道就结束`;
+}
+function gameOver(done){
+  G.phase = 'over'; G.done = done;
+  $('pTask').hidden = true;
+  $('legend').hidden = true;
+  $('resBig').textContent = '血量耗尽';
+  $('resStats').innerHTML = `<div><b>${G.wrong} 道</b>判断题答错（上限 ${G.maxWrong} 道，占总题数 30%）</div><div><b>${done} / ${G.L.n}</b>进行到的轮数</div>`;
+  $('msg').textContent = '判断题错得太多，这局结束了。再来一局吧。';
+  $('pResult').hidden = false;
+}
+function updateRecall(){
+  $('msg').innerHTML = `按顺序点出亮过的星：已选 <b>${G.picks.length}</b> / ${G.L.n}`;
+  $('doneBtn').disabled = G.picks.length !== G.L.n;
+  $('undoBtn').disabled = !G.picks.length;
+}
+sky.addEventListener('click', e => {
+  if(!G || G.phase !== 'recall') return;
+  const g = e.target.closest('.star'); if(!g) return;
+  const i = +g.dataset.i, k = G.picks.indexOf(i);
+  if(k >= 0){ if(k === G.picks.length-1) G.picks.pop(); }
+  else if(G.picks.length < G.L.n) G.picks.push(i);
+  renderMarks(); updateRecall();
+});
+$('undoBtn').onclick = () => { if(G && G.phase==='recall'){ G.picks.pop(); renderMarks(); updateRecall(); } };
+$('doneBtn').onclick = finish;
+function finish(){
+  G.phase = 'result';
+  $('board').classList.remove('pick');
+  $('recallCtl').hidden = true;
+  const right = G.seq.filter((v,k) => G.picks[k] === v).length;
+  const found = G.seq.filter(v => G.picks.includes(v)).length;
+  const n = G.L.n;
+  G.score = right;
+  const best = loadBest();
+  const isNew = best[G.lv] == null || right > best[G.lv];
+  if(isNew){ best[G.lv] = right; saveBest(best); }
+  showBest();
+  const word = right === n ? '完美星图' : right >= n*.6 ? '星图大致还原' : '星光有点模糊';
+  $('resBig').textContent = `${right} / ${n}`;
+  $('resStats').innerHTML = `<div><b>${word}</b>顺序完全正确的位置</div><div><b>${found} / ${n}</b>找到的星（不计顺序）</div><div><b>${Math.round(G.taskOk/n*100)}%</b>判断题正确率</div>` + (isNew ? '<div><b>新纪录</b>本难度最佳</div>' : '');
+  $('msg').innerHTML = '绿线是正确的顺序，红色虚线是你点的顺序。';
+  $('legend').hidden = false;
+  $('pResult').hidden = false;
+  renderMarks();
+}
+$('startBtn').onclick = start;
+$('againBtn').onclick = start;
+$('menuBtn').onclick = () => { G = null; renderHP(); drawSky(); $('pResult').hidden = true; $('pStart').hidden = false; $('msg').textContent = '选择难度后点“开始观星”。'; };
+$('copyBtn').onclick = async () => {
+  const names = ['入门','标准','挑战','大师'];
+  if(G.phase === 'over'){ G.score = 0; }
+  const t = G.phase === 'over' ? `我在「星序」${names[G.lv]}难度第 ${G.done} 轮就被判断题耗光了血量。你来试试？` : `我在「星序」${names[G.lv]}难度记对了 ${G.score}/${G.L.n} 颗星的顺序，判断题正确率 ${Math.round(G.taskOk/G.L.n*100)}%。来挑战我！`;
+  try{ await navigator.clipboard.writeText(t); $('copyBtn').textContent = '已复制'; }
+  catch(e){ $('copyBtn').textContent = '复制失败'; }
+  setTimeout(() => $('copyBtn').textContent = '复制成绩', 1500);
+};
+document.querySelectorAll('#diff input').forEach(i => i.onchange = showBest);
+showBest();
+}
+</script>
+</body>
+</html>
